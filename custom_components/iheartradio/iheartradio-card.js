@@ -225,6 +225,7 @@ class IHeartRadioCard extends HTMLElement {
     const categories = [
       { id: "local", label: "📍 Local Stations" },
       { id: "market:99", label: "🦞 Boston" },
+      { id: "market:101", label: "📻 Worcester" },
       { id: "market:159", label: "🗽 New York" },
       { id: "market:187", label: "🌴 Los Angeles" },
       { id: "market:84", label: "🌆 Chicago" },

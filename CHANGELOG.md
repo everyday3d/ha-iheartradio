@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Worcester, MA Market & Regional Station Expansion (#6)**:
+  - Added Worcester, MA (`marketId: "101"`) featuring **104.5 WXLO** (`id: 5380`), 96.1 WSRS, and Central Massachusetts stations.
+  - Added Worcester category pill (`📻 Worcester`) to `iheartradio-card.js`.
+  - Added Worcester to `POPULAR_MARKETS` for setup/options flow and Media Browser directories.
+  - Added regional market expansion bridge linking Worcester stations into Greater Boston (`marketId: "99"`), expanding the Boston station catalog to 40 stations including 104.5 WXLO.
+
 ## [1.0.0] - 2026-10-25
 
 ### Added

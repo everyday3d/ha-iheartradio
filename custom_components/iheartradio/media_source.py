@@ -166,6 +166,7 @@ class IHeartRadioMediaSource(MediaSource):
         # 3. Stations in a Specific Market
         if identifier.startswith("market/"):
             market_id = identifier.split("/", 1)[1]
+            market_id = client.LEGACY_MARKET_MAP.get(market_id, market_id)
             market_name = POPULAR_MARKETS.get(market_id, f"Market {market_id}")
             try:
                 raw_stations = await client.async_get_stations_by_market(market_id, limit=60)

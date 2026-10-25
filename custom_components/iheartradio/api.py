@@ -34,6 +34,24 @@ class IHeartRadioStationNotFoundError(IHeartRadioError):
 class IHeartRadioApiClient:
     """Async API Client for iHeartRadio public endpoints."""
 
+    LEGACY_MARKET_MAP = {
+        "137": "99",   # Boston, MA
+        "143": "84",   # Chicago, IL
+        "127": "61",   # Atlanta, GA
+        "133": "214",  # Austin, TX
+        "151": "111",  # Detroit, MI
+        "183": "152",  # Las Vegas, NV
+        "207": "14",   # Phoenix, AZ
+        "213": "192",  # Portland, OR
+        "221": "226",  # San Antonio, TX
+        "227": "119",  # St. Louis, MO
+        "229": "245",  # Seattle-Tacoma, WA
+    }
+
+    REGIONAL_MARKET_EXPANSIONS = {
+        "99": ["101"],  # Greater Boston includes Worcester (104.5 WXLO, 96.1 WSRS)
+    }
+
     def __init__(self, session: aiohttp.ClientSession) -> None:
         """Initialize the client with an existing aiohttp session."""
         self._session = session
@@ -88,9 +106,28 @@ class IHeartRadioApiClient:
         self, market_id: int | str, limit: int = 50
     ) -> list[dict[str, Any]]:
         """Fetch live stations for a given market ID."""
-        url = f"{API_BASE_V2}/content/liveStations?marketId={market_id}&limit={limit}"
+        normalized_id = self.LEGACY_MARKET_MAP.get(str(market_id), str(market_id))
+        url = f"{API_BASE_V2}/content/liveStations?marketId={normalized_id}&limit={limit}"
         data = await self._async_request(url)
-        return data.get("hits", [])
+        stations = list(data.get("hits", []))
+
+        # Merge regional market expansions (e.g. Worcester into Boston) if applicable
+        expansions = self.REGIONAL_MARKET_EXPANSIONS.get(normalized_id, [])
+        if expansions:
+            seen_ids = {s.get("id") for s in stations if "id" in s}
+            for exp_id in expansions:
+                try:
+                    exp_url = f"{API_BASE_V2}/content/liveStations?marketId={exp_id}&limit={limit}"
+                    exp_data = await self._async_request(exp_url)
+                    for station in exp_data.get("hits", []):
+                        st_id = station.get("id")
+                        if st_id and st_id not in seen_ids:
+                            seen_ids.add(st_id)
+                            stations.append(station)
+                except Exception as err:
+                    _LOGGER.debug("Failed to fetch regional market expansion %s: %s", exp_id, err)
+
+        return stations
 
     async def async_get_stations_by_genre(
         self, genre_id: int | str, limit: int = 50

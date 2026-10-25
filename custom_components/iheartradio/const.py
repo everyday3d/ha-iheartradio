@@ -34,6 +34,7 @@ POPULAR_MARKETS: Final[dict[str, str]] = {
     "42": "Washington, DC",
     "14": "Phoenix, AZ",
     "99": "Boston, MA",
+    "101": "Worcester, MA",
     "193": "Miami-Ft. Lauderdale, FL",
     "245": "Seattle-Tacoma, WA",
     "219": "San Francisco, CA",

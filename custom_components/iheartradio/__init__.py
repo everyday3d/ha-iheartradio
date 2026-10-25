@@ -19,6 +19,7 @@ from homeassistant.loader import async_get_integration
 
 from .api import IHeartRadioApiClient, IHeartRadioError
 from .const import (
+    CONF_DEFAULT_MARKET,
     CONF_STREAM_TYPE,
     DEFAULT_STREAM_TYPE,
     DOMAIN,
@@ -50,6 +51,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = async_get_clientsession(hass)
     client = IHeartRadioApiClient(session)
+
+    # Auto-migrate legacy market IDs from early beta entries
+    legacy_migrations = {
+        "137": "99",   # Boston, MA
+        "143": "84",   # Chicago, IL
+        "127": "61",   # Atlanta, GA
+        "133": "214",  # Austin, TX
+        "151": "111",  # Detroit, MI
+        "183": "152",  # Las Vegas, NV
+        "207": "14",   # Phoenix, AZ
+        "213": "192",  # Portland, OR
+        "221": "226",  # San Antonio, TX
+        "227": "119",  # St. Louis, MO
+        "229": "245",  # Seattle-Tacoma, WA
+    }
+    raw_market = entry.options.get(CONF_DEFAULT_MARKET) or entry.data.get(CONF_DEFAULT_MARKET)
+    if raw_market in legacy_migrations:
+        new_market = legacy_migrations[raw_market]
+        _LOGGER.info("Migrating legacy market ID %s -> %s for %s", raw_market, new_market, entry.title)
+        new_data = {**entry.data, CONF_DEFAULT_MARKET: new_market}
+        new_options = {**entry.options}
+        if CONF_DEFAULT_MARKET in new_options:
+            new_options[CONF_DEFAULT_MARKET] = new_market
+        hass.config_entries.async_update_entry(entry, data=new_data, options=new_options)
 
     # Combine data and options
     entry_config = {**entry.data, **entry.options}
