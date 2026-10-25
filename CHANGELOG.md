@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🎯 `iheartradio.play_station` Automation Action**:
   - Dedicated Home Assistant action to play any station on one or more `media_player` entities by station name, call letters, or numeric ID.
   - Built-in validation verifying target entity domain and availability before dispatching playback.
+- **🎛️ Custom Lovelace Radio Player Card (`iheartradio-card`)**:
+  - Dedicated dashboard card registered via `async_register_static_paths` and `add_extra_js_url` without manual `/config/www` setup.
+  - Live station search querying backend via authenticated WebSocket API (`iheartradio/search`).
+  - Speaker selector dropdown querying all `media_player` entities, with active state indicators and `localStorage` persistence.
+  - Horizontal category pill strip with mouse wheel delta translation, active touch/scroll gesture freeze (1400ms debounce), and scroll position preservation across re-renders (zero jump-back).
+  - Real-time Now Playing bar with Play/Pause and Stop controls.
+  - Strict HTML sanitization via `escapeHtml()` across all dynamic station names, calls, frequencies, descriptions, and entity names.
 - **🛡️ Full HACS & HA Core Standards Compliance**:
   - Zero blocking file I/O in the async loop (`async_get_integration`).
   - Managed async HTTP sessions via `aiohttp_client.async_get_clientsession(hass)`.

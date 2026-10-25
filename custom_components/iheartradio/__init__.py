@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -21,6 +24,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import IHeartRadioCoordinator
+from .websocket import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +73,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register custom actions/services
     _async_register_services(hass)
+
+    # Register WebSocket commands for frontend card
+    async_register_websocket_commands(hass)
+
+    # Register Lovelace card static path (Rule: Zero blocking file I/O)
+    card_path = os.path.join(os.path.dirname(__file__), "iheartradio-card.js")
+    card_exists = await hass.async_add_executor_job(os.path.exists, card_path)
+    if card_exists and not hass.data.get(f"{DOMAIN}_static_registered"):
+        try:
+            await hass.http.async_register_static_paths([
+                StaticPathConfig("/iheartradio/iheartradio-card.js", card_path, cache_headers=True)
+            ])
+            add_extra_js_url(hass, f"/iheartradio/iheartradio-card.js?v={integration.version}")
+            hass.data[f"{DOMAIN}_static_registered"] = True
+            _LOGGER.info("Registered iHeartRadio Lovelace card at /iheartradio/iheartradio-card.js")
+        except Exception as err:
+            _LOGGER.debug("Could not register iHeartRadio static path: %s", err)
 
     return True
 

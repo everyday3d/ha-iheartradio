@@ -13,6 +13,7 @@ With this integration, you get thousands of live local AM/FM stations and digita
 ## 🌟 What It Does
 
 - **📻 Native Media Browser Support**: Shows up directly inside Home Assistant's Media Browser sidebar. Browse stations by your local city, explore genres, or pick from your saved favorites.
+- **🎛️ Custom Lovelace Radio Card (`iheartradio-card`)**: A sleek, dedicated dashboard card with live station search, category pills, speaker picker dropdown, and real-time Now Playing controls. Automatically registered and served without copying files to `/config/www`.
 - **🗺️ Major Market & City Directory**: Easily browse stations in New York, Los Angeles, Chicago, Dallas, Atlanta, Boston, Phoenix, Miami, and dozens of other cities.
 - **🎸 Genre & Format Categories**: Quick access to Classic Rock, Top 40 & Pop, Country, Hip Hop & R&B, News & Talk, Sports Radio, 80s & 90s Hits, and more.
 - **⚡ Two Stream Modes**:
@@ -55,7 +56,22 @@ With this integration, you get thousands of live local AM/FM stations and digita
 
 ## 🎵 How to Play Music
 
-### 1. In the Media Browser
+### 1. Dedicated Dashboard Card (`iheartradio-card`)
+Add the custom card to your dashboard via the Lovelace UI ("Add Card" ➔ search for **iHeartRadio Player Card**), or use YAML:
+
+```yaml
+type: custom:iheartradio-card
+title: "Workshop Radio"
+default_player: media_player.workshop_speaker
+```
+
+Features included on the card:
+- **Speaker Selector**: Switch playback between any smart speaker in your home.
+- **Fast Live Search**: Filter thousands of stations by call letters, city, or name with debounced instant search.
+- **Category & Market Pills**: Smooth horizontal scrolling across popular genres and major cities with zero jump-back.
+- **Now Playing Strip**: Live stream metadata and instant Play / Pause / Stop controls.
+
+### 2. In the Media Browser
 Click **Media** in the Home Assistant sidebar, choose **iHeartRadio**, pick your city or genre, click any station, and pick which speaker you want it to play on!
 
 ### 2. In Automations & Scripts
