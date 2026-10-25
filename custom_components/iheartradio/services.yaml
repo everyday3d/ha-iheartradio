@@ -194,3 +194,74 @@ announce:
       selector:
         entity:
           domain: media_player
+
+play_group:
+  name: Play Synchronized Group
+  description: Broadcast an iHeartRadio live station concurrently across multiple media players with independent per-speaker volume balancing.
+  target:
+    entity:
+      domain: media_player
+  fields:
+    station:
+      name: Station Name, Call Letters, or ID
+      description: Station query (e.g. 'Z100', '106.7 Lite FM', 'WHTZ-FM', or station ID '1469').
+      example: Z100
+      required: true
+      selector:
+        text:
+    stream_type:
+      name: Stream Type
+      description: Audio format preference (direct MP3/AAC or HLS adaptive stream).
+      required: false
+      selector:
+        select:
+          options:
+            - label: Direct Stream (MP3/AAC - Lowest Latency)
+              value: direct
+            - label: HLS Stream (Adaptive Bitrate)
+              value: hls
+    volume_level:
+      name: Master Volume Level
+      description: Optional baseline volume level (0.0 to 1.0) applied across all group target speakers.
+      example: 0.4
+      required: false
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.05
+          mode: slider
+    volumes:
+      name: Per-Speaker Volume Map
+      description: Optional dictionary mapping specific speaker entity IDs to custom volume levels (overriding master volume).
+      example: '{"media_player.kitchen": 0.35, "media_player.garage": 0.65}'
+      required: false
+      selector:
+        object:
+    sync_start:
+      name: Synchronized Start
+      description: Concurrently dispatch stream connection to minimize cross-speaker playback delay.
+      default: true
+      required: false
+      selector:
+        boolean:
+
+stop_group:
+  name: Stop Group Broadcast
+  description: Stop or pause playback across active group speakers, or specify target players to remove from multi-room broadcast.
+  target:
+    entity:
+      domain: media_player
+  fields:
+    action:
+      name: Stop Action
+      description: Whether to stop or pause the media players.
+      default: stop
+      required: false
+      selector:
+        select:
+          options:
+            - label: Stop Playback
+              value: stop
+            - label: Pause Playback
+              value: pause

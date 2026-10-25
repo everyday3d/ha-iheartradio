@@ -140,6 +140,38 @@ data:
   fade_duration: 2
 ```
 
+### 5. Cross-Platform Multi-Speaker Broadcasts (`iheartradio.play_group` & `iheartradio.stop_group`)
+If your house or shop is anything like mine, you probably have a mix of different smart speakers—a Sonos in the living room, a Google Nest in the kitchen, and bench speakers in the workshop. Native grouping usually locks you into a single manufacturer ecosystem.
+
+I designed **`iheartradio.play_group`** to bridge all your speakers together:
+- **Instant multi-speaker sync dispatch**: Resolves the live stream URL once and dispatches connection requests concurrently so your music kicks off across the house at the same moment.
+- **Independent per-speaker volume balancing**: Set a master volume level or dial in per-speaker volumes so loud tools in the garage don't force you to blast the kitchen.
+- **One-touch whole-house control**: Call `iheartradio.stop_group` with no target specified to shut down or pause all active group speakers instantly.
+
+```yaml
+alias: "Workshop & House Radio Broadcast"
+action: iheartradio.play_group
+target:
+  entity_id:
+    - media_player.workshop_speaker
+    - media_player.kitchen_display
+    - media_player.living_room_sonos
+data:
+  station: "Z100"
+  volume_level: 0.35
+  volumes:
+    media_player.workshop_speaker: 0.60
+    media_player.kitchen_display: 0.25
+```
+
+To stop or pause the whole group at once:
+```yaml
+alias: "Stop Whole-House Radio"
+action: iheartradio.stop_group
+data:
+  action: stop
+```
+
 ---
 
 ## 🤝 Community & Feedback

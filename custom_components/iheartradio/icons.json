@@ -14,6 +14,12 @@
     },
     "announce": {
       "service": "mdi:bullhorn"
+    },
+    "play_group": {
+      "service": "mdi:speaker-multiple"
+    },
+    "stop_group": {
+      "service": "mdi:speaker-off"
     }
   }
 }

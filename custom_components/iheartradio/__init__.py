@@ -33,8 +33,11 @@ from .const import (
     ATTR_MESSAGE,
     ATTR_PAUSE_ON_FINISH,
     ATTR_STATION,
+    ATTR_SYNC_START,
     ATTR_TARGET_VOLUME,
     ATTR_TTS_ENGINE,
+    ATTR_VOLUME_LEVEL,
+    ATTR_VOLUMES,
     ATTR_WAIT_TIME,
     CONF_DEFAULT_MARKET,
     CONF_STREAM_TYPE,
@@ -43,8 +46,12 @@ from .const import (
     SERVICE_ANNOUNCE,
     SERVICE_CANCEL_FADE,
     SERVICE_FADE_OUT,
+    SERVICE_PLAY_GROUP,
     SERVICE_PLAY_STATION,
     SERVICE_SLEEP_TIMER,
+    SERVICE_STOP_GROUP,
+    STREAM_TYPE_DIRECT,
+    STREAM_TYPE_HLS,
 )
 from .coordinator import IHeartRadioCoordinator
 from .websocket import async_register_websocket_commands
@@ -106,6 +113,28 @@ SCHEMA_ANNOUNCE = vol.All(
             vol.Optional(ATTR_ANNOUNCE_PLAYER): cv.string,
         }
     ),
+)
+
+SCHEMA_PLAY_GROUP = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Required(ATTR_STATION): cv.string,
+        vol.Optional(CONF_STREAM_TYPE): vol.In([STREAM_TYPE_DIRECT, STREAM_TYPE_HLS]),
+        vol.Optional(ATTR_VOLUME_LEVEL): vol.All(
+            vol.Coerce(float), vol.Range(min=0.0, max=1.0)
+        ),
+        vol.Optional(ATTR_VOLUMES): vol.Schema(
+            {cv.entity_id: vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0))}
+        ),
+        vol.Optional(ATTR_SYNC_START, default=True): cv.boolean,
+    }
+)
+
+SCHEMA_STOP_GROUP = vol.Schema(
+    {
+        vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_ACTION, default="stop"): vol.In(["stop", "pause"]),
+    }
 )
 
 
@@ -214,6 +243,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, SERVICE_SLEEP_TIMER)
             hass.services.async_remove(DOMAIN, SERVICE_CANCEL_FADE)
             hass.services.async_remove(DOMAIN, SERVICE_ANNOUNCE)
+            hass.services.async_remove(DOMAIN, SERVICE_PLAY_GROUP)
+            hass.services.async_remove(DOMAIN, SERVICE_STOP_GROUP)
 
             # Rule 14: Clean Lifecycle Unload - cancel and await running background tasks
             active_tasks: dict[str, asyncio.Task] = hass.data.pop(f"{DOMAIN}_tasks", {})
@@ -224,6 +255,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await asyncio.gather(*active_tasks.values(), return_exceptions=True)
 
             hass.data.pop(f"{DOMAIN}_last_played", None)
+            hass.data.pop(f"{DOMAIN}_groups", None)
 
     return unload_ok
 
@@ -673,6 +705,130 @@ def _async_register_services(hass: HomeAssistant) -> None:
             )
             active_tasks[eid] = task
 
+    async def _handle_play_group(call: ServiceCall) -> None:
+        """Handle the play_group service call (multi-speaker synchronized broadcast)."""
+        valid_targets = _validate_targets(hass, call.data[ATTR_ENTITY_ID])
+        if not valid_targets:
+            raise HomeAssistantError("No valid target media_player entities provided")
+
+        station_query = str(call.data[ATTR_STATION]).strip()
+        entries = hass.data.get(DOMAIN, {})
+        if not entries:
+            raise HomeAssistantError("iHeartRadio integration is not configured")
+
+        entry_bundle = next(iter(entries.values()))
+        client: IHeartRadioApiClient = entry_bundle["client"]
+        options = entry_bundle["entry"].options or entry_bundle["entry"].data
+        stream_type = call.data.get(CONF_STREAM_TYPE) or options.get(CONF_STREAM_TYPE, DEFAULT_STREAM_TYPE)
+
+        try:
+            # Resolve station query (station ID or keyword search)
+            station_id = ""
+            if station_query.isdigit():
+                station_id = station_query
+            else:
+                results = await client.async_search(station_query, limit=5)
+                if not results:
+                    raise HomeAssistantError(
+                        f"No iHeartRadio stations found matching '{station_query}'"
+                    )
+                station_id = str(results[0].get("id"))
+
+            stream_url, _ = await client.async_get_stream(station_id, stream_type=stream_type)
+
+            # 1. Volume balancing across speakers
+            global_vol = call.data.get(ATTR_VOLUME_LEVEL)
+            custom_vols: dict[str, float] = call.data.get(ATTR_VOLUMES) or {}
+            vol_tasks = []
+            for eid in valid_targets:
+                vol_to_set = custom_vols.get(eid, global_vol)
+                if vol_to_set is not None:
+                    vol_tasks.append(
+                        hass.services.async_call(
+                            "media_player",
+                            "volume_set",
+                            {"entity_id": eid, "volume_level": vol_to_set},
+                            blocking=True,
+                        )
+                    )
+            if vol_tasks:
+                await asyncio.gather(*vol_tasks, return_exceptions=True)
+
+            # 2. Concurrently dispatch play_media to all validated speakers
+            play_tasks = [
+                hass.services.async_call(
+                    "media_player",
+                    "play_media",
+                    {
+                        "entity_id": eid,
+                        "media_content_id": stream_url,
+                        "media_content_type": "music",
+                    },
+                    blocking=True,
+                )
+                for eid in valid_targets
+            ]
+            results = await asyncio.gather(*play_tasks, return_exceptions=True)
+            for eid, res in zip(valid_targets, results):
+                if isinstance(res, Exception):
+                    _LOGGER.warning("Could not dispatch stream to %s: %s", eid, res)
+
+            # 3. Track active group membership & last played station
+            active_groups: set[str] = hass.data.setdefault(f"{DOMAIN}_groups", set())
+            active_groups.update(valid_targets)
+
+            last_played = hass.data.setdefault(f"{DOMAIN}_last_played", {})
+            for eid in valid_targets:
+                last_played[eid] = {
+                    "station_id": station_id,
+                    "stream_type": stream_type,
+                }
+
+            _LOGGER.info(
+                "Started sync group broadcast of station %s across %d speakers: %s",
+                station_id,
+                len(valid_targets),
+                valid_targets,
+            )
+        except IHeartRadioError as err:
+            raise HomeAssistantError(f"Failed to play iHeartRadio station on group: {err}") from err
+
+    async def _handle_stop_group(call: ServiceCall) -> None:
+        """Handle the stop_group service call (stop/pause multi-room broadcast)."""
+        raw_targets = call.data.get(ATTR_ENTITY_ID)
+        if raw_targets:
+            targets = _validate_targets(hass, raw_targets)
+        else:
+            active_groups: set[str] = hass.data.get(f"{DOMAIN}_groups", set())
+            targets = [eid for eid in active_groups if hass.states.get(eid) is not None]
+
+        if not targets:
+            _LOGGER.debug("No active group speakers to stop")
+            return
+
+        action = call.data.get(ATTR_ACTION, "stop")
+        service_name = "media_stop" if action == "stop" else "media_pause"
+
+        stop_tasks = [
+            hass.services.async_call(
+                "media_player",
+                service_name,
+                {"entity_id": eid},
+                blocking=True,
+            )
+            for eid in targets
+        ]
+        results = await asyncio.gather(*stop_tasks, return_exceptions=True)
+        for eid, res in zip(targets, results):
+            if isinstance(res, Exception):
+                _LOGGER.warning("Could not %s on group player %s: %s", action, eid, res)
+
+        active_groups = hass.data.get(f"{DOMAIN}_groups", set())
+        for eid in targets:
+            active_groups.discard(eid)
+
+        _LOGGER.info("Executed %s across %d group speakers: %s", service_name, len(targets), targets)
+
     if not hass.services.has_service(DOMAIN, SERVICE_PLAY_STATION):
         hass.services.async_register(
             DOMAIN,
@@ -707,4 +863,18 @@ def _async_register_services(hass: HomeAssistant) -> None:
             SERVICE_ANNOUNCE,
             _handle_announce,
             schema=SCHEMA_ANNOUNCE,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_PLAY_GROUP):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_PLAY_GROUP,
+            _handle_play_group,
+            schema=SCHEMA_PLAY_GROUP,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_STOP_GROUP):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_STOP_GROUP,
+            _handle_stop_group,
+            schema=SCHEMA_STOP_GROUP,
         )
