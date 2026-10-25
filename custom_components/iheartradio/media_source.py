@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant
 
 from .api import IHeartRadioApiClient, IHeartRadioError
 from .const import (
+    ALL_US_MARKETS,
     CONF_DEFAULT_MARKET,
     CONF_STREAM_TYPE,
     DEFAULT_MARKET,
@@ -22,6 +23,7 @@ from .const import (
     DOMAIN,
     POPULAR_GENRES,
     POPULAR_MARKETS,
+    US_STATE_NAMES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,7 +88,7 @@ class IHeartRadioMediaSource(MediaSource):
                     identifier=f"market/{default_market}",
                     media_class=MediaClass.DIRECTORY,
                     media_content_type=MediaType.MUSIC,
-                    title=f"📍 Local Market ({POPULAR_MARKETS.get(default_market, default_market)})",
+                    title=f"📍 Local Market ({ALL_US_MARKETS.get(default_market, POPULAR_MARKETS.get(default_market, default_market))})",
                     can_play=False,
                     can_expand=True,
                 ),
@@ -113,7 +115,16 @@ class IHeartRadioMediaSource(MediaSource):
                     identifier="markets",
                     media_class=MediaClass.DIRECTORY,
                     media_content_type=MediaType.MUSIC,
-                    title="🗺️ Browse All Major Cities & Markets",
+                    title=f"🗺️ Browse All US Markets ({len(ALL_US_MARKETS)} Cities)",
+                    can_play=False,
+                    can_expand=True,
+                ),
+                BrowseMediaSource(
+                    domain=DOMAIN,
+                    identifier="states",
+                    media_class=MediaClass.DIRECTORY,
+                    media_content_type=MediaType.MUSIC,
+                    title="🇺🇸 Browse Markets by State",
                     can_play=False,
                     can_expand=True,
                 ),
@@ -138,7 +149,7 @@ class IHeartRadioMediaSource(MediaSource):
                 children=children,
             )
 
-        # 2. Browse by Markets List
+        # 2. Browse by Markets List (Nationwide - All 274 Cities)
         if identifier == "markets":
             children = [
                 BrowseMediaSource(
@@ -150,24 +161,82 @@ class IHeartRadioMediaSource(MediaSource):
                     can_play=False,
                     can_expand=True,
                 )
-                for mid, mname in POPULAR_MARKETS.items()
+                for mid, mname in ALL_US_MARKETS.items()
             ]
             return BrowseMediaSource(
                 domain=DOMAIN,
                 identifier="markets",
                 media_class=MediaClass.DIRECTORY,
                 media_content_type=MediaType.MUSIC,
-                title="All Markets & Cities",
+                title=f"All US Markets ({len(ALL_US_MARKETS)} Cities)",
                 can_play=False,
                 can_expand=True,
                 children=children,
             )
 
-        # 3. Stations in a Specific Market
+        # 3. Browse by US State
+        if identifier == "states":
+            by_state: dict[str, int] = {}
+            for mname in ALL_US_MARKETS.values():
+                st = mname.split(", ")[-1] if ", " in mname else "US"
+                by_state[st] = by_state.get(st, 0) + 1
+
+            children = [
+                BrowseMediaSource(
+                    domain=DOMAIN,
+                    identifier=f"state/{st}",
+                    media_class=MediaClass.DIRECTORY,
+                    media_content_type=MediaType.MUSIC,
+                    title=f"🇺🇸 {US_STATE_NAMES.get(st, st)} ({count} Market{'s' if count != 1 else ''})",
+                    can_play=False,
+                    can_expand=True,
+                )
+                for st, count in sorted(by_state.items(), key=lambda x: US_STATE_NAMES.get(x[0], x[0]))
+            ]
+            return BrowseMediaSource(
+                domain=DOMAIN,
+                identifier="states",
+                media_class=MediaClass.DIRECTORY,
+                media_content_type=MediaType.MUSIC,
+                title="Browse Markets by State",
+                can_play=False,
+                can_expand=True,
+                children=children,
+            )
+
+        # 4. Markets in a Specific State
+        if identifier.startswith("state/"):
+            target_st = identifier.split("/", 1)[1].upper()
+            state_name = US_STATE_NAMES.get(target_st, target_st)
+            children = [
+                BrowseMediaSource(
+                    domain=DOMAIN,
+                    identifier=f"market/{mid}",
+                    media_class=MediaClass.DIRECTORY,
+                    media_content_type=MediaType.MUSIC,
+                    title=f"📍 {mname}",
+                    can_play=False,
+                    can_expand=True,
+                )
+                for mid, mname in ALL_US_MARKETS.items()
+                if mname.endswith(f", {target_st}")
+            ]
+            return BrowseMediaSource(
+                domain=DOMAIN,
+                identifier=identifier,
+                media_class=MediaClass.DIRECTORY,
+                media_content_type=MediaType.MUSIC,
+                title=f"{state_name} Markets",
+                can_play=False,
+                can_expand=True,
+                children=children,
+            )
+
+        # 5. Stations in a Specific Market
         if identifier.startswith("market/"):
             market_id = identifier.split("/", 1)[1]
             market_id = client.LEGACY_MARKET_MAP.get(market_id, market_id)
-            market_name = POPULAR_MARKETS.get(market_id, f"Market {market_id}")
+            market_name = ALL_US_MARKETS.get(market_id, POPULAR_MARKETS.get(market_id, f"Market {market_id}"))
             try:
                 raw_stations = await client.async_get_stations_by_market(market_id, limit=60)
             except IHeartRadioError as err:

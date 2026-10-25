@@ -10,7 +10,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from .api import IHeartRadioApiClient, IHeartRadioError
-from .const import DOMAIN, POPULAR_GENRES, POPULAR_MARKETS
+from .const import ALL_US_MARKETS, DOMAIN, POPULAR_GENRES, POPULAR_MARKETS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,7 +106,16 @@ async def ws_markets(
     msg: dict[str, Any],
 ) -> None:
     """Handle listing available markets."""
-    market_list = [{"id": mid, "name": mname} for mid, mname in POPULAR_MARKETS.items()]
+    market_list = []
+    for mid, mname in ALL_US_MARKETS.items():
+        city = mname.split(", ")[0] if ", " in mname else mname
+        state = mname.split(", ")[-1] if ", " in mname else "US"
+        market_list.append({
+            "id": mid,
+            "name": mname,
+            "city": city,
+            "state": state,
+        })
     connection.send_result(msg["id"], {"markets": market_list})
 
 

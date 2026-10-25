@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Nationwide US Markets Directory & Dynamic Market Picker (#7)**:
+  - Expanded catalog to all **274 official US radio markets** across all 50 states + DC, PR, and National/Digital.
+  - Added dynamic nationwide **Market Selector dropdown** to `iheartradio-card.js` with grouped states (`<optgroup>`), allowing instant switching to any of the 274 US markets.
+  - Added state-by-state media browsing hierarchy (`🇺🇸 Browse Markets by State`) in `media_source.py` covering all 52 states and regions with market counts.
+  - Updated `config_flow.py` and options flow to support selecting any of the 274 US markets as the user's default local market.
+  - Enhanced WebSocket API command `iheartradio/markets` to return nationwide market metadata (`id`, `name`, `city`, `state`).
+  - Added legacy market ID migrations for updated official metro endpoints (Los Angeles `21`, Dallas `218`, Houston `220`, Philadelphia `196`, Miami `50`, Denver `37`, San Diego `27`, San Francisco `28`, Tampa `58`, Minneapolis `116`, Baltimore `102`, Charlotte `130`, Pittsburgh `197`).
 - **Worcester, MA Market & Regional Station Expansion (#6)**:
   - Added Worcester, MA (`marketId: "101"`) featuring **104.5 WXLO** (`id: 5380`), 96.1 WSRS, and Central Massachusetts stations.
   - Added Worcester category pill (`📻 Worcester`) to `iheartradio-card.js`.

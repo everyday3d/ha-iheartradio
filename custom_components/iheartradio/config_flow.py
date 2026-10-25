@@ -16,6 +16,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from .const import (
+    ALL_US_MARKETS,
     CONF_DEFAULT_MARKET,
     CONF_FAVORITES,
     CONF_STREAM_TYPE,
@@ -31,10 +32,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _get_market_options() -> list[selector.SelectOptionDict]:
-    """Generate select options for popular markets."""
+    """Generate select options for all US markets."""
     return [
         selector.SelectOptionDict(value=mid, label=f"{name} (ID: {mid})")
-        for mid, name in POPULAR_MARKETS.items()
+        for mid, name in ALL_US_MARKETS.items()
     ]
 
 

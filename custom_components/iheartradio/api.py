@@ -46,6 +46,18 @@ class IHeartRadioApiClient:
         "221": "226",  # San Antonio, TX
         "227": "119",  # St. Louis, MO
         "229": "245",  # Seattle-Tacoma, WA
+        "171": "220",  # Houston, TX
+        "145": "218",  # Dallas, TX
+        "217": "27",   # San Diego, CA
+        "219": "28",   # San Francisco, CA
+        "147": "37",   # Denver, CO
+        "193": "50",   # Miami, FL
+        "197": "116",  # Minneapolis, MN
+        "237": "58",   # Tampa, FL
+        "201": "210",  # Nashville, TN
+        "131": "102",  # Baltimore, MD
+        "141": "130",  # Charlotte, NC
+        "205": "197",  # Pittsburgh, PA
     }
 
     REGIONAL_MARKET_EXPANSIONS = {

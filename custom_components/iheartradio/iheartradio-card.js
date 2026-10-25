@@ -22,6 +22,8 @@ class IHeartRadioCard extends HTMLElement {
 
     // State
     this._stations = [];
+    this._markets = [];
+    this._marketsLoaded = false;
     this._loading = false;
     this._selectedCategory = "local"; // "local", "favorites", "genre:<id>", "market:<id>"
     this._searchQuery = "";
@@ -71,8 +73,26 @@ class IHeartRadioCard extends HTMLElement {
     if (!this._hasInitialLoad) {
       this._hasInitialLoad = true;
       this._loadCategoryStations("local");
+      this._loadMarkets();
     } else {
+      if (!this._marketsLoaded) {
+        this._loadMarkets();
+      }
       this._render();
+    }
+  }
+
+  async _loadMarkets() {
+    if (!this._hass || this._marketsLoaded) return;
+    try {
+      const resp = await this._hass.callWS({ type: "iheartradio/markets" });
+      if (resp && resp.markets) {
+        this._markets = resp.markets;
+        this._marketsLoaded = true;
+        this._render();
+      }
+    } catch (err) {
+      console.debug("[iHeartRadio Card] Failed to load markets list:", err);
     }
   }
 
@@ -213,6 +233,25 @@ class IHeartRadioCard extends HTMLElement {
     bar.style.display = isPlaying || playerObj.state === "paused" ? "flex" : "none";
   }
 
+  _renderMarketOptions() {
+    if (!this._markets || this._markets.length === 0) return "";
+    const byState = {};
+    for (const m of this._markets) {
+      const st = m.state || "US";
+      if (!byState[st]) byState[st] = [];
+      byState[st].push(m);
+    }
+    const sortedStates = Object.keys(byState).sort();
+    return sortedStates.map((st) => {
+      const stateMarkets = byState[st];
+      const opts = stateMarkets.map((m) => {
+        const isSel = this._selectedCategory === `market:${m.id}`;
+        return `<option value="${escapeHtml(m.id)}" ${isSel ? "selected" : ""}>${escapeHtml(m.name)}</option>`;
+      }).join("");
+      return `<optgroup label="${escapeHtml(st)}">${opts}</optgroup>`;
+    }).join("");
+  }
+
   _render() {
     this._saveScrollPositions();
 
@@ -227,12 +266,21 @@ class IHeartRadioCard extends HTMLElement {
       { id: "market:99", label: "🦞 Boston" },
       { id: "market:101", label: "📻 Worcester" },
       { id: "market:159", label: "🗽 New York" },
-      { id: "market:187", label: "🌴 Los Angeles" },
+      { id: "market:21", label: "🌴 Los Angeles" },
       { id: "market:84", label: "🌆 Chicago" },
       { id: "market:61", label: "🍑 Atlanta" },
-      { id: "market:145", label: "⭐ Dallas" },
+      { id: "market:218", label: "⭐ Dallas" },
+      { id: "market:220", label: "🚀 Houston" },
+      { id: "market:196", label: "🔔 Philadelphia" },
       { id: "market:42", label: "🏛️ Washington DC" },
       { id: "market:245", label: "☕ Seattle" },
+      { id: "market:50", label: "🌴 Miami" },
+      { id: "market:37", label: "🏔️ Denver" },
+      { id: "market:28", label: "🌉 San Francisco" },
+      { id: "market:152", label: "🎰 Las Vegas" },
+      { id: "market:210", label: "🎸 Nashville" },
+      { id: "market:214", label: "🤠 Austin" },
+      { id: "market:14", label: "☀️ Phoenix" },
       { id: "genre:16", label: "🔥 Top 40 & Pop" },
       { id: "genre:2", label: "🎸 Classic Rock" },
       { id: "genre:4", label: "🤠 Country" },
@@ -243,6 +291,16 @@ class IHeartRadioCard extends HTMLElement {
       { id: "genre:10", label: "🎷 Jazz & Blues" },
       { id: "market:575", label: "🌐 Digital Exclusives" },
     ];
+
+    if (this._selectedCategory && this._selectedCategory.startsWith("market:")) {
+      const mid = this._selectedCategory.replace("market:", "");
+      const exists = categories.some((c) => c.id === this._selectedCategory);
+      if (!exists) {
+        const found = this._markets.find((m) => String(m.id) === String(mid));
+        const customLabel = found ? `📍 ${found.name}` : `📍 Market ${mid}`;
+        categories.splice(1, 0, { id: this._selectedCategory, label: customLabel });
+      }
+    }
 
     let stationsHtml = "";
     if (this._loading) {
@@ -347,10 +405,17 @@ class IHeartRadioCard extends HTMLElement {
           background: #1c1e24;
           color: #ffffff;
         }
-        /* Search Bar */
+        /* Controls Row: Search & Nationwide Market Dropdown */
+        .controls-row {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
         .search-container {
           position: relative;
-          margin-bottom: 12px;
+          flex: 1 1 180px;
+          margin-bottom: 0;
         }
         .search-input {
           width: 100%;
@@ -380,6 +445,32 @@ class IHeartRadioCard extends HTMLElement {
         }
         .search-clear:hover {
           opacity: 1;
+        }
+        .market-selector-wrap {
+          flex: 0 1 230px;
+          position: relative;
+        }
+        .market-select {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 10px 12px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 10px;
+          color: var(--primary-text-color, #ffffff);
+          font-size: 0.85rem;
+          font-weight: 500;
+          outline: none;
+          cursor: pointer;
+          transition: border-color 0.2s, background 0.2s;
+        }
+        .market-select:focus {
+          border-color: #ff2d55;
+          background: rgba(255, 255, 255, 0.08);
+        }
+        .market-select option, .market-select optgroup {
+          background: #1c1e24;
+          color: #ffffff;
         }
         /* Category Pills with horizontal scroll */
         .category-pills {
@@ -608,15 +699,23 @@ class IHeartRadioCard extends HTMLElement {
           </div>
         </div>
 
-        <!-- Search input -->
-        <div class="search-container">
-          <input
-            type="text"
-            class="search-input"
-            placeholder="Search stations, call letters, cities..."
-            value="${escapeHtml(this._searchQuery)}"
-          />
-          ${this._searchQuery ? '<div class="search-clear">✕</div>' : ""}
+        <!-- Controls: Search & Nationwide Market Dropdown -->
+        <div class="controls-row">
+          <div class="search-container">
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search stations, call letters, cities..."
+              value="${escapeHtml(this._searchQuery)}"
+            />
+            ${this._searchQuery ? '<div class="search-clear">✕</div>' : ""}
+          </div>
+          <div class="market-selector-wrap">
+            <select class="market-select" title="Nationwide US Market Selector">
+              <option value="">🗺️ Nationwide Markets (${this._markets.length || 274} Cities)...</option>
+              ${this._renderMarketOptions()}
+            </select>
+          </div>
         </div>
 
         <!-- Category Pills -->
@@ -690,6 +789,19 @@ class IHeartRadioCard extends HTMLElement {
         this._markInteraction();
         this._searchQuery = "";
         this._performSearch("");
+      });
+    }
+
+    // Market dropdown change (Nationwide Selector)
+    const marketSelect = root.querySelector(".market-select");
+    if (marketSelect) {
+      marketSelect.addEventListener("change", (e) => {
+        this._markInteraction();
+        const mid = e.target.value;
+        if (mid) {
+          this._searchQuery = "";
+          this._loadCategoryStations(`market:${mid}`);
+        }
       });
     }
 
