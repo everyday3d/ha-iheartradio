@@ -521,8 +521,6 @@ async def _async_announce_player(
 
 def _async_register_services(hass: HomeAssistant) -> None:
     """Register iHeartRadio integration services."""
-    if hass.services.has_service(DOMAIN, SERVICE_PLAY_STATION):
-        return
 
     async def _handle_play_station(call: ServiceCall) -> None:
         """Handle the play_station service call."""
@@ -675,33 +673,38 @@ def _async_register_services(hass: HomeAssistant) -> None:
             )
             active_tasks[eid] = task
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_PLAY_STATION,
-        _handle_play_station,
-        schema=SCHEMA_PLAY_STATION,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_FADE_OUT,
-        _handle_fade_out,
-        schema=SCHEMA_FADE_OUT,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SLEEP_TIMER,
-        _handle_sleep_timer,
-        schema=SCHEMA_SLEEP_TIMER,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_CANCEL_FADE,
-        _handle_cancel_fade,
-        schema=SCHEMA_CANCEL_FADE,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_ANNOUNCE,
-        _handle_announce,
-        schema=SCHEMA_ANNOUNCE,
-    )
+    if not hass.services.has_service(DOMAIN, SERVICE_PLAY_STATION):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_PLAY_STATION,
+            _handle_play_station,
+            schema=SCHEMA_PLAY_STATION,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_FADE_OUT):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_FADE_OUT,
+            _handle_fade_out,
+            schema=SCHEMA_FADE_OUT,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_SLEEP_TIMER):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SLEEP_TIMER,
+            _handle_sleep_timer,
+            schema=SCHEMA_SLEEP_TIMER,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_CANCEL_FADE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CANCEL_FADE,
+            _handle_cancel_fade,
+            schema=SCHEMA_CANCEL_FADE,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_ANNOUNCE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_ANNOUNCE,
+            _handle_announce,
+            schema=SCHEMA_ANNOUNCE,
+        )
