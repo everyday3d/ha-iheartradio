@@ -11,7 +11,8 @@
       }
     },
     "abort": {
-      "already_configured": "iHeartRadio is already configured."
+      "already_configured": "iHeartRadio is already configured.",
+      "already_in_progress": "A setup flow for iHeartRadio is already in progress."
     }
   },
   "options": {
