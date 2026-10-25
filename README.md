@@ -99,6 +99,31 @@ data:
   station: "WLTW-FM"
 ```
 
+### 3. Sleep Timers & Smooth Volume Fading
+You can also set automated sleep timers and smooth volume fades without needing complex custom helper loops:
+
+```yaml
+# Fade volume down over 45 seconds and pause when done
+action: iheartradio.fade_out
+target:
+  entity_id: media_player.workshop_speaker
+data:
+  duration: 45
+  target_volume: 0.0
+  pause_on_finish: true
+```
+
+```yaml
+# Set a 30-minute sleep timer with a gentle 60-second fade out
+action: iheartradio.sleep_timer
+target:
+  entity_id: media_player.bedroom_speaker
+data:
+  duration: 30
+  fade_out: true
+  fade_duration: 60
+```
+
 ---
 
 ## 🤝 Community & Feedback

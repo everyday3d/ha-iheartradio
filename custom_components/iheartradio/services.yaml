@@ -18,3 +18,130 @@ play_station:
       required: true
       selector:
         text:
+
+fade_out:
+  name: Fade Volume
+  description: Smoothly ramp volume up or down on one or more media players over a specified duration with optional pause on completion.
+  fields:
+    entity_id:
+      name: Target Media Player
+      description: One or more media player entities to fade.
+      example: media_player.workshop_speaker
+      required: true
+      selector:
+        target:
+          entity:
+            domain: media_player
+    duration:
+      name: Duration (Seconds)
+      description: Total transition duration in seconds.
+      example: 30
+      default: 30
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1800
+          unit_of_measurement: seconds
+          mode: box
+    target_volume:
+      name: Target Volume Level
+      description: The final volume level (0.0 to 1.0) after the fade completes.
+      example: 0.0
+      default: 0.0
+      required: false
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.05
+          mode: slider
+    pause_on_finish:
+      name: Pause On Finish
+      description: Whether to automatically pause the media player when target volume reaches 0.0.
+      default: true
+      required: false
+      selector:
+        boolean:
+    curve:
+      name: Volume Curve
+      description: Volume transition curve (linear or perceptual logarithmic decay).
+      default: linear
+      required: false
+      selector:
+        select:
+          options:
+            - label: Linear
+              value: linear
+            - label: Logarithmic (Perceptual)
+              value: logarithmic
+
+sleep_timer:
+  name: Sleep Timer
+  description: Set a sleep timer on one or more media players with an optional gentle volume fade-out before pausing or stopping.
+  fields:
+    entity_id:
+      name: Target Media Player
+      description: One or more media player entities to set the sleep timer on.
+      example: media_player.bedroom_speaker
+      required: true
+      selector:
+        target:
+          entity:
+            domain: media_player
+    duration:
+      name: Duration (Minutes)
+      description: How many minutes until the sleep timer completes.
+      example: 30
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: minutes
+          mode: box
+    fade_out:
+      name: Enable Fade Out
+      description: Whether to gradually ramp the volume down before stopping.
+      default: true
+      required: false
+      selector:
+        boolean:
+    fade_duration:
+      name: Fade Duration (Seconds)
+      description: Duration of the volume fade-out preceding the timer completion.
+      default: 60
+      example: 60
+      required: false
+      selector:
+        number:
+          min: 5
+          max: 600
+          unit_of_measurement: seconds
+          mode: box
+    action:
+      name: Timer Action
+      description: Action to perform when the sleep timer finishes.
+      default: pause
+      required: false
+      selector:
+        select:
+          options:
+            - label: Pause Playback
+              value: pause
+            - label: Stop Playback
+              value: stop
+
+cancel_fade:
+  name: Cancel Fade / Sleep Timer
+  description: Cancel any active volume fade or sleep timer task currently running on the specified media player(s).
+  fields:
+    entity_id:
+      name: Target Media Player
+      description: One or more media player entities whose active timers should be cancelled.
+      example: media_player.bedroom_speaker
+      required: true
+      selector:
+        target:
+          entity:
+            domain: media_player

@@ -1,7 +1,9 @@
 """The iHeartRadio Home Assistant Integration."""
 from __future__ import annotations
 
+import asyncio
 import logging
+import math
 import os
 from typing import Any
 
@@ -19,10 +21,23 @@ from homeassistant.loader import async_get_integration
 
 from .api import IHeartRadioApiClient, IHeartRadioError
 from .const import (
+    ATTR_ACTION,
+    ATTR_CURVE,
+    ATTR_DURATION,
+    ATTR_ENTITY_ID,
+    ATTR_FADE_DURATION,
+    ATTR_FADE_OUT,
+    ATTR_PAUSE_ON_FINISH,
+    ATTR_STATION,
+    ATTR_TARGET_VOLUME,
     CONF_DEFAULT_MARKET,
     CONF_STREAM_TYPE,
     DEFAULT_STREAM_TYPE,
     DOMAIN,
+    SERVICE_CANCEL_FADE,
+    SERVICE_FADE_OUT,
+    SERVICE_PLAY_STATION,
+    SERVICE_SLEEP_TIMER,
 )
 from .coordinator import IHeartRadioCoordinator
 from .websocket import async_register_websocket_commands
@@ -31,14 +46,36 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = []
 
-SERVICE_PLAY_STATION = "play_station"
-ATTR_ENTITY_ID = "entity_id"
-ATTR_STATION = "station"
-
 SCHEMA_PLAY_STATION = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Required(ATTR_STATION): cv.string,
+    }
+)
+
+SCHEMA_FADE_OUT = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_DURATION, default=30): vol.All(vol.Coerce(int), vol.Range(min=1, max=1800)),
+        vol.Optional(ATTR_TARGET_VOLUME, default=0.0): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+        vol.Optional(ATTR_PAUSE_ON_FINISH, default=True): cv.boolean,
+        vol.Optional(ATTR_CURVE, default="linear"): vol.In(["linear", "logarithmic"]),
+    }
+)
+
+SCHEMA_SLEEP_TIMER = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Required(ATTR_DURATION): vol.All(vol.Coerce(int), vol.Range(min=1, max=240)),
+        vol.Optional(ATTR_FADE_OUT, default=True): cv.boolean,
+        vol.Optional(ATTR_FADE_DURATION, default=60): vol.All(vol.Coerce(int), vol.Range(min=5, max=600)),
+        vol.Optional(ATTR_ACTION, default="pause"): vol.In(["pause", "stop"]),
+    }
+)
+
+SCHEMA_CANCEL_FADE = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
     }
 )
 
@@ -144,6 +181,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not hass.data[DOMAIN]:
             # Deregister services when last entry is unloaded
             hass.services.async_remove(DOMAIN, SERVICE_PLAY_STATION)
+            hass.services.async_remove(DOMAIN, SERVICE_FADE_OUT)
+            hass.services.async_remove(DOMAIN, SERVICE_SLEEP_TIMER)
+            hass.services.async_remove(DOMAIN, SERVICE_CANCEL_FADE)
+
+            # Rule 14: Clean Lifecycle Unload - cancel and await running background tasks
+            active_tasks: dict[str, asyncio.Task] = hass.data.pop(f"{DOMAIN}_tasks", {})
+            for task in list(active_tasks.values()):
+                if not task.done():
+                    task.cancel()
+            if active_tasks:
+                await asyncio.gather(*active_tasks.values(), return_exceptions=True)
 
     return unload_ok
 
@@ -153,6 +201,159 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+def _validate_targets(hass: HomeAssistant, raw_entity_ids: Any) -> list[str]:
+    """Validate target entities: media_player domain & state exists (Rule 14)."""
+    target_entity_ids = (
+        raw_entity_ids if isinstance(raw_entity_ids, list) else [raw_entity_ids]
+    )
+    valid_targets: list[str] = []
+    for eid in target_entity_ids:
+        if not eid.startswith("media_player."):
+            _LOGGER.warning("Target %s is not in media_player domain, skipping", eid)
+            continue
+        if hass.states.get(eid) is None:
+            _LOGGER.warning("Target media_player %s does not exist, skipping", eid)
+            continue
+        valid_targets.append(eid)
+    return valid_targets
+
+
+async def _async_fade_player(
+    hass: HomeAssistant,
+    entity_id: str,
+    target_volume: float,
+    duration: int,
+    pause_on_finish: bool,
+    curve: str,
+) -> None:
+    """Fade a single media player's volume smoothly over duration."""
+    state = hass.states.get(entity_id)
+    if not state or state.state in ("off", "idle"):
+        _LOGGER.debug("Media player %s is %s, aborting fade", entity_id, state.state if state else "None")
+        return
+
+    current_vol = state.attributes.get("volume_level")
+    if current_vol is None:
+        _LOGGER.warning(
+            "Media player %s does not report volume_level; cannot calculate volume fade curve",
+            entity_id,
+        )
+        if pause_on_finish:
+            await asyncio.sleep(duration)
+            await hass.services.async_call(
+                "media_player", "media_pause", {"entity_id": entity_id}, blocking=True
+            )
+        return
+
+    start_vol = float(current_vol)
+    if abs(start_vol - target_volume) < 0.01:
+        if pause_on_finish and target_volume == 0.0:
+            await hass.services.async_call(
+                "media_player", "media_pause", {"entity_id": entity_id}, blocking=True
+            )
+        return
+
+    step_interval = 1.0 if duration <= 60 else 2.0
+    num_steps = max(1, int(duration / step_interval))
+
+    try:
+        for step in range(1, num_steps + 1):
+            await asyncio.sleep(step_interval)
+
+            curr_state = hass.states.get(entity_id)
+            if not curr_state or curr_state.state in ("off", "idle"):
+                _LOGGER.debug("Player %s state changed to %s; stopping fade early", entity_id, curr_state.state if curr_state else "None")
+                return
+
+            progress = step / num_steps
+            if curve == "logarithmic":
+                factor = 1.0 - math.pow(1.0 - progress, 1.5)
+                vol_now = start_vol + (target_volume - start_vol) * factor
+            else:
+                vol_now = start_vol + (target_volume - start_vol) * progress
+
+            vol_clamped = max(0.0, min(1.0, round(vol_now, 2)))
+            await hass.services.async_call(
+                "media_player",
+                "volume_set",
+                {"entity_id": entity_id, "volume_level": vol_clamped},
+                blocking=False,
+            )
+
+        if pause_on_finish and target_volume == 0.0:
+            await hass.services.async_call(
+                "media_player",
+                "media_pause",
+                {"entity_id": entity_id},
+                blocking=True,
+            )
+            _LOGGER.info("Fade-out complete for %s: paused playback", entity_id)
+        else:
+            _LOGGER.info("Fade complete for %s at volume %.2f", entity_id, target_volume)
+
+    except asyncio.CancelledError:
+        _LOGGER.debug("Fade task cancelled for %s", entity_id)
+        raise
+    finally:
+        active_tasks = hass.data.get(f"{DOMAIN}_tasks", {})
+        active_tasks.pop(entity_id, None)
+
+
+async def _async_sleep_timer_player(
+    hass: HomeAssistant,
+    entity_id: str,
+    total_minutes: int,
+    fade_out: bool,
+    fade_duration: int,
+    action: str,
+) -> None:
+    """Wait for sleep timer duration and then stop/pause with optional fade."""
+    total_seconds = total_minutes * 60
+    wait_seconds = max(0, total_seconds - fade_duration) if fade_out else total_seconds
+
+    try:
+        if wait_seconds > 0:
+            _LOGGER.info(
+                "Sleep timer started on %s for %d minutes (fade: %s, duration: %ds)",
+                entity_id,
+                total_minutes,
+                fade_out,
+                fade_duration if fade_out else 0,
+            )
+            await asyncio.sleep(wait_seconds)
+
+        state = hass.states.get(entity_id)
+        if not state or state.state in ("off", "idle"):
+            _LOGGER.debug("Sleep timer reached on %s, but player is %s", entity_id, state.state if state else "None")
+            return
+
+        if fade_out and fade_duration > 0:
+            await _async_fade_player(
+                hass=hass,
+                entity_id=entity_id,
+                target_volume=0.0,
+                duration=fade_duration,
+                pause_on_finish=False,
+                curve="linear",
+            )
+
+        action_service = "media_stop" if action == "stop" else "media_pause"
+        await hass.services.async_call(
+            "media_player",
+            action_service,
+            {"entity_id": entity_id},
+            blocking=True,
+        )
+        _LOGGER.info("Sleep timer finished on %s: executed %s", entity_id, action_service)
+
+    except asyncio.CancelledError:
+        _LOGGER.debug("Sleep timer cancelled for %s", entity_id)
+        raise
+    finally:
+        active_tasks = hass.data.get(f"{DOMAIN}_tasks", {})
+        active_tasks.pop(entity_id, None)
+
+
 def _async_register_services(hass: HomeAssistant) -> None:
     """Register iHeartRadio integration services."""
     if hass.services.has_service(DOMAIN, SERVICE_PLAY_STATION):
@@ -160,26 +361,11 @@ def _async_register_services(hass: HomeAssistant) -> None:
 
     async def _handle_play_station(call: ServiceCall) -> None:
         """Handle the play_station service call."""
-        raw_entity_ids = call.data[ATTR_ENTITY_ID]
-        target_entity_ids = (
-            raw_entity_ids if isinstance(raw_entity_ids, list) else [raw_entity_ids]
-        )
-        station_query = str(call.data[ATTR_STATION]).strip()
-
-        # Rule: Frenck standard - strict target validation (whitelist domain & check state existence)
-        valid_targets: list[str] = []
-        for eid in target_entity_ids:
-            if not eid.startswith("media_player."):
-                _LOGGER.warning("Target %s is not in media_player domain, skipping", eid)
-                continue
-            if hass.states.get(eid) is None:
-                _LOGGER.warning("Target media_player %s does not exist, skipping", eid)
-                continue
-            valid_targets.append(eid)
-
+        valid_targets = _validate_targets(hass, call.data[ATTR_ENTITY_ID])
         if not valid_targets:
             raise HomeAssistantError("No valid target media_player entities provided")
 
+        station_query = str(call.data[ATTR_STATION]).strip()
         entries = hass.data.get(DOMAIN, {})
         if not entries:
             raise HomeAssistantError("iHeartRadio integration is not configured")
@@ -223,9 +409,85 @@ def _async_register_services(hass: HomeAssistant) -> None:
         except IHeartRadioError as err:
             raise HomeAssistantError(f"Failed to play iHeartRadio station: {err}") from err
 
+    async def _handle_fade_out(call: ServiceCall) -> None:
+        """Handle the fade_out service call."""
+        valid_targets = _validate_targets(hass, call.data[ATTR_ENTITY_ID])
+        if not valid_targets:
+            raise HomeAssistantError("No valid target media_player entities provided")
+
+        duration = call.data[ATTR_DURATION]
+        target_volume = call.data[ATTR_TARGET_VOLUME]
+        pause_on_finish = call.data[ATTR_PAUSE_ON_FINISH]
+        curve = call.data[ATTR_CURVE]
+
+        active_tasks = hass.data.setdefault(f"{DOMAIN}_tasks", {})
+        for eid in valid_targets:
+            existing = active_tasks.get(eid)
+            if existing and not existing.done():
+                existing.cancel()
+
+            task = hass.async_create_task(
+                _async_fade_player(hass, eid, target_volume, duration, pause_on_finish, curve)
+            )
+            active_tasks[eid] = task
+
+    async def _handle_sleep_timer(call: ServiceCall) -> None:
+        """Handle the sleep_timer service call."""
+        valid_targets = _validate_targets(hass, call.data[ATTR_ENTITY_ID])
+        if not valid_targets:
+            raise HomeAssistantError("No valid target media_player entities provided")
+
+        duration = call.data[ATTR_DURATION]
+        fade_out = call.data[ATTR_FADE_OUT]
+        fade_duration = call.data[ATTR_FADE_DURATION]
+        action = call.data[ATTR_ACTION]
+
+        active_tasks = hass.data.setdefault(f"{DOMAIN}_tasks", {})
+        for eid in valid_targets:
+            existing = active_tasks.get(eid)
+            if existing and not existing.done():
+                existing.cancel()
+
+            task = hass.async_create_task(
+                _async_sleep_timer_player(hass, eid, duration, fade_out, fade_duration, action)
+            )
+            active_tasks[eid] = task
+
+    async def _handle_cancel_fade(call: ServiceCall) -> None:
+        """Handle the cancel_fade service call."""
+        valid_targets = _validate_targets(hass, call.data[ATTR_ENTITY_ID])
+        if not valid_targets:
+            raise HomeAssistantError("No valid target media_player entities provided")
+
+        active_tasks = hass.data.setdefault(f"{DOMAIN}_tasks", {})
+        for eid in valid_targets:
+            existing = active_tasks.get(eid)
+            if existing and not existing.done():
+                existing.cancel()
+                active_tasks.pop(eid, None)
+                _LOGGER.info("Cancelled active fade/sleep timer for %s", eid)
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_PLAY_STATION,
         _handle_play_station,
         schema=SCHEMA_PLAY_STATION,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_FADE_OUT,
+        _handle_fade_out,
+        schema=SCHEMA_FADE_OUT,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SLEEP_TIMER,
+        _handle_sleep_timer,
+        schema=SCHEMA_SLEEP_TIMER,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CANCEL_FADE,
+        _handle_cancel_fade,
+        schema=SCHEMA_CANCEL_FADE,
     )

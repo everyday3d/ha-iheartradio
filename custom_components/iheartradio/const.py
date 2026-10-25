@@ -420,3 +420,20 @@ POPULAR_GENRES: Final[dict[int, str]] = {
 # Media classes and types
 MEDIA_TYPE_RADIO: Final = "radio"
 MEDIA_TYPE_STATION: Final = "station"
+
+# Services
+SERVICE_PLAY_STATION: Final = "play_station"
+SERVICE_FADE_OUT: Final = "fade_out"
+SERVICE_SLEEP_TIMER: Final = "sleep_timer"
+SERVICE_CANCEL_FADE: Final = "cancel_fade"
+
+# Service Attributes
+ATTR_ENTITY_ID: Final = "entity_id"
+ATTR_STATION: Final = "station"
+ATTR_DURATION: Final = "duration"
+ATTR_TARGET_VOLUME: Final = "target_volume"
+ATTR_PAUSE_ON_FINISH: Final = "pause_on_finish"
+ATTR_FADE_OUT: Final = "fade_out"
+ATTR_FADE_DURATION: Final = "fade_duration"
+ATTR_ACTION: Final = "action"
+ATTR_CURVE: Final = "curve"

@@ -1,0 +1,16 @@
+{
+  "services": {
+    "play_station": {
+      "service": "mdi:radio"
+    },
+    "fade_out": {
+      "service": "mdi:volume-minus"
+    },
+    "sleep_timer": {
+      "service": "mdi:sleep"
+    },
+    "cancel_fade": {
+      "service": "mdi:close-circle-outline"
+    }
+  }
+}
