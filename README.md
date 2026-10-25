@@ -104,3 +104,11 @@ data:
 ## 🤝 Community & Feedback
 
 If you have an idea, run into a bug, or want a new city added to the quick-pick list, feel free to open an issue or drop a discussion thread on [GitHub Issues](https://github.com/everyday3d/ha-iheartradio/issues). Happy listening and happy making!
+
+---
+
+## ⚖️ Trademark & Legal Notice
+
+This is an independent, free, and open-source project created for the Home Assistant and maker communities. It is not affiliated with, sponsored by, or endorsed by iHeartMedia, Inc. or any of its subsidiaries.
+
+All product names, logos, station call letters, audio streams, trademarks, and registered trademarks (including "iHeart", "iHeartRadio", and individual broadcast station marks) are the property of their respective owners. Their inclusion in this integration and its documentation is strictly for identification, directory discovery, and interoperability purposes.
