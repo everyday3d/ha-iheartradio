@@ -224,6 +224,14 @@ class IHeartRadioCard extends HTMLElement {
 
     const categories = [
       { id: "local", label: "📍 Local Stations" },
+      { id: "market:99", label: "🦞 Boston" },
+      { id: "market:159", label: "🗽 New York" },
+      { id: "market:187", label: "🌴 Los Angeles" },
+      { id: "market:84", label: "🌆 Chicago" },
+      { id: "market:61", label: "🍑 Atlanta" },
+      { id: "market:145", label: "⭐ Dallas" },
+      { id: "market:42", label: "🏛️ Washington DC" },
+      { id: "market:245", label: "☕ Seattle" },
       { id: "genre:16", label: "🔥 Top 40 & Pop" },
       { id: "genre:2", label: "🎸 Classic Rock" },
       { id: "genre:4", label: "🤠 Country" },
@@ -233,10 +241,6 @@ class IHeartRadioCard extends HTMLElement {
       { id: "genre:11", label: "📼 80s & 90s Hits" },
       { id: "genre:10", label: "🎷 Jazz & Blues" },
       { id: "market:575", label: "🌐 Digital Exclusives" },
-      { id: "market:187", label: "🌴 Los Angeles" },
-      { id: "market:143", label: "🌆 Chicago" },
-      { id: "market:145", label: "⭐ Dallas" },
-      { id: "market:127", label: "🍑 Atlanta" },
     ];
 
     let stationsHtml = "";

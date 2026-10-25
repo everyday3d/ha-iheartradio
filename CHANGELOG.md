@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clean lifecycle unloading (`async_unload_entry`).
 
 ### Fixed
+- **Boston & US Major Market ID Alignment (#5)**:
+  - Corrected Boston, MA market ID from `137` (0 stations) to official iHeartRadio market ID `99` (34 stations including Kiss 108, 100.7 WZLX, WBZ NewsRadio 1030, JAM'N 94.5).
+  - Verified and corrected market IDs across all 32 major US markets (Atlanta `61`, Chicago `84`, Austin `214`, Detroit `111`, Las Vegas `152`, Phoenix `14`, Portland `192`, San Antonio `226`, St. Louis `119`, Seattle `245`, Washington DC `42`, Orlando `51`, etc.) so every city directory displays 10–45 live stations.
+  - Added Boston quick-select pill to `iheartradio-card.js`.
 - **Config Flow Load Failure / Invalid Handler (#4)**:
   - Removed invalid `Platform.MEDIA_SOURCE` reference in `custom_components/iheartradio/__init__.py`. `media_source` is an integration-level component auto-loaded via `async_get_media_source` rather than an entity platform enum, eliminating the `AttributeError: type object 'EntityPlatforms' has no attribute 'MEDIA_SOURCE'` that broke config flow registration.
 - **CI Dependency & Private Repository CI Notice (#3)**:
