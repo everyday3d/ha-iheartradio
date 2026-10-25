@@ -19,9 +19,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: HACS Validation
+        if: ${{ !github.event.repository.private }}
         uses: hacs/action@main
         with:
           category: integration
+
+      - name: Notice for private repository
+        if: ${{ github.event.repository.private }}
+        run: |
+          echo "::notice::HACS validation action requires a public repository and will automatically execute once the repository visibility is set to public."
 
   validate-hassfest:
     name: Hassfest Validation

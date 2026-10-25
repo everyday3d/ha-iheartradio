@@ -34,3 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Managed async HTTP sessions via `aiohttp_client.async_get_clientsession(hass)`.
   - Circuit-breaker error reporting using Home Assistant's Issue Registry (`async_create_issue` / `async_delete_issue`).
   - Clean lifecycle unloading (`async_unload_entry`).
+
+### Fixed
+- **CI Dependency & Private Repository CI Notice (#3)**:
+  - Added missing `http` component dependency to `manifest.json` resolving Hassfest validation error.
+  - Configured `validate-hacs` workflow to skip gracefully with a notice while the repository is private (HACS action only validates public repositories).

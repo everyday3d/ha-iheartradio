@@ -3,7 +3,7 @@
   "name": "iHeartRadio",
   "codeowners": ["@everyday3d"],
   "config_flow": true,
-  "dependencies": ["frontend"],
+  "dependencies": ["frontend", "http"],
   "documentation": "https://github.com/everyday3d/ha-iheartradio",
   "integration_type": "service",
   "iot_class": "cloud_polling",
