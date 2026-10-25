@@ -11,6 +11,9 @@
     },
     "cancel_fade": {
       "service": "mdi:close-circle-outline"
+    },
+    "announce": {
+      "service": "mdi:bullhorn"
     }
   }
 }

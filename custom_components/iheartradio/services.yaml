@@ -120,3 +120,77 @@ cancel_fade:
   target:
     entity:
       domain: media_player
+
+announce:
+  name: Announce with Radio Ducking
+  description: Smoothly duck playing radio volume, broadcast a TTS message or audio chime, and automatically resume radio playback and volume.
+  target:
+    entity:
+      domain: media_player
+  fields:
+    message:
+      name: TTS Message
+      description: The text message to speak using Home Assistant text-to-speech.
+      example: "Build plate clear! 3D print finished successfully."
+      required: false
+      selector:
+        text:
+          multiline: true
+    media_content_id:
+      name: Custom Chime or Sound URL
+      description: Optional audio URL or local media path (e.g. /local/doorbell.mp3) to play instead of or alongside TTS.
+      example: "/local/doorbell.mp3"
+      required: false
+      selector:
+        text:
+    duck_volume:
+      name: Ducked Volume Level
+      description: The temporary volume level (0.0 to 1.0) while the announcement is speaking.
+      default: 0.15
+      example: 0.15
+      required: false
+      selector:
+        number:
+          min: 0.0
+          max: 1.0
+          step: 0.05
+          mode: slider
+    fade_duration:
+      name: Fade Duration (Seconds)
+      description: How quickly to fade down and back up (1 to 10 seconds).
+      default: 2
+      example: 2
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 10
+          unit_of_measurement: seconds
+          mode: box
+    wait_time:
+      name: Custom Hold Time (Seconds)
+      description: Optional override for speech duration. If omitted, duration is calculated automatically from message length.
+      example: 5
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: seconds
+          mode: box
+    tts_engine:
+      name: TTS Engine
+      description: Specific text-to-speech engine to use (e.g. tts.piper, tts.cloud). If omitted, uses the default TTS engine.
+      example: "tts.piper"
+      required: false
+      selector:
+        entity:
+          domain: tts
+    announce_player:
+      name: Announcement Speaker
+      description: Optional different speaker to play the announcement on. If omitted, plays on the radio speaker.
+      example: "media_player.hallway_speaker"
+      required: false
+      selector:
+        entity:
+          domain: media_player

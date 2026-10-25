@@ -22,18 +22,25 @@ from homeassistant.loader import async_get_integration
 from .api import IHeartRadioApiClient, IHeartRadioError
 from .const import (
     ATTR_ACTION,
+    ATTR_ANNOUNCE_PLAYER,
     ATTR_CURVE,
     ATTR_DURATION,
+    ATTR_DUCK_VOLUME,
     ATTR_ENTITY_ID,
     ATTR_FADE_DURATION,
     ATTR_FADE_OUT,
+    ATTR_MEDIA_CONTENT_ID,
+    ATTR_MESSAGE,
     ATTR_PAUSE_ON_FINISH,
     ATTR_STATION,
     ATTR_TARGET_VOLUME,
+    ATTR_TTS_ENGINE,
+    ATTR_WAIT_TIME,
     CONF_DEFAULT_MARKET,
     CONF_STREAM_TYPE,
     DEFAULT_STREAM_TYPE,
     DOMAIN,
+    SERVICE_ANNOUNCE,
     SERVICE_CANCEL_FADE,
     SERVICE_FADE_OUT,
     SERVICE_PLAY_STATION,
@@ -77,6 +84,28 @@ SCHEMA_CANCEL_FADE = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
     }
+)
+
+SCHEMA_ANNOUNCE = vol.All(
+    cv.has_at_least_one_key(ATTR_MESSAGE, ATTR_MEDIA_CONTENT_ID),
+    vol.Schema(
+        {
+            vol.Required(ATTR_ENTITY_ID): cv.entity_ids,
+            vol.Optional(ATTR_MESSAGE): cv.string,
+            vol.Optional(ATTR_MEDIA_CONTENT_ID): cv.string,
+            vol.Optional(ATTR_DUCK_VOLUME, default=0.15): vol.All(
+                vol.Coerce(float), vol.Range(min=0.0, max=1.0)
+            ),
+            vol.Optional(ATTR_FADE_DURATION, default=2): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=10)
+            ),
+            vol.Optional(ATTR_WAIT_TIME): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=60)
+            ),
+            vol.Optional(ATTR_TTS_ENGINE): cv.string,
+            vol.Optional(ATTR_ANNOUNCE_PLAYER): cv.string,
+        }
+    ),
 )
 
 
@@ -184,6 +213,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, SERVICE_FADE_OUT)
             hass.services.async_remove(DOMAIN, SERVICE_SLEEP_TIMER)
             hass.services.async_remove(DOMAIN, SERVICE_CANCEL_FADE)
+            hass.services.async_remove(DOMAIN, SERVICE_ANNOUNCE)
 
             # Rule 14: Clean Lifecycle Unload - cancel and await running background tasks
             active_tasks: dict[str, asyncio.Task] = hass.data.pop(f"{DOMAIN}_tasks", {})
@@ -192,6 +222,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     task.cancel()
             if active_tasks:
                 await asyncio.gather(*active_tasks.values(), return_exceptions=True)
+
+            hass.data.pop(f"{DOMAIN}_last_played", None)
 
     return unload_ok
 
@@ -354,6 +386,139 @@ async def _async_sleep_timer_player(
         active_tasks.pop(entity_id, None)
 
 
+async def _async_announce_player(
+    hass: HomeAssistant,
+    entity_id: str,
+    message: str | None,
+    media_content_id: str | None,
+    duck_volume: float,
+    fade_duration: int,
+    wait_time: int | None,
+    tts_engine: str | None,
+    announce_player: str | None,
+) -> None:
+    """Duck radio volume, play announcement, and restore stream (Rule 14)."""
+    target_announce = announce_player or entity_id
+
+    # Validate target announcement player (Rule 14)
+    if not target_announce.startswith("media_player.") or hass.states.get(target_announce) is None:
+        _LOGGER.warning("Announcement player %s is invalid or does not exist", target_announce)
+        return
+
+    # Validate tts engine if provided (Rule 14)
+    if tts_engine and (not tts_engine.startswith("tts.") or hass.states.get(tts_engine) is None):
+        _LOGGER.warning("TTS engine %s is invalid; must belong to tts domain", tts_engine)
+        return
+
+    # Check initial state of the radio speaker
+    state = hass.states.get(entity_id)
+    is_playing = state is not None and state.state == "playing"
+    original_volume = float(state.attributes.get("volume_level", 0.5)) if state else 0.5
+
+    last_played = hass.data.get(f"{DOMAIN}_last_played", {}).get(entity_id)
+
+    try:
+        # 1. Duck the radio volume if currently playing
+        if is_playing and original_volume > duck_volume:
+            await _async_fade_player(
+                hass=hass,
+                entity_id=entity_id,
+                target_volume=duck_volume,
+                duration=fade_duration,
+                pause_on_finish=False,
+                curve="linear",
+            )
+
+        # 2. Dispatch announcement
+        is_same_player = target_announce == entity_id
+        if message:
+            # Find TTS engine if not specified
+            engine_entity = tts_engine
+            if not engine_entity:
+                for s in hass.states.async_all("tts"):
+                    engine_entity = s.entity_id
+                    break
+
+            if engine_entity:
+                await hass.services.async_call(
+                    "tts",
+                    "speak",
+                    {
+                        "media_player_entity_id": target_announce,
+                        "message": message,
+                    },
+                    target={"entity_id": engine_entity},
+                    blocking=True,
+                )
+            else:
+                _LOGGER.warning("No TTS engine available in Home Assistant to speak announcement")
+        elif media_content_id:
+            await hass.services.async_call(
+                "media_player",
+                "play_media",
+                {
+                    "entity_id": target_announce,
+                    "media_content_id": media_content_id,
+                    "media_content_type": "music",
+                },
+                blocking=True,
+            )
+
+        # 3. Wait for announcement duration
+        calc_wait = wait_time
+        if calc_wait is None:
+            if message:
+                words = len(message.split())
+                calc_wait = max(4, int(words / 2.5) + 3)
+            else:
+                calc_wait = 5
+
+        await asyncio.sleep(calc_wait)
+
+        # 4. If same player and was playing an iHeartRadio station, resume playback
+        if is_same_player and is_playing and last_played:
+            entries = hass.data.get(DOMAIN, {})
+            if entries:
+                entry_bundle = next(iter(entries.values()))
+                client: IHeartRadioApiClient = entry_bundle["client"]
+                station_id = last_played["station_id"]
+                stream_type = last_played.get("stream_type", DEFAULT_STREAM_TYPE)
+
+                try:
+                    stream_url, _ = await client.async_get_stream(station_id, stream_type=stream_type)
+                    await hass.services.async_call(
+                        "media_player",
+                        "play_media",
+                        {
+                            "entity_id": entity_id,
+                            "media_content_id": stream_url,
+                            "media_content_type": "music",
+                        },
+                        blocking=True,
+                    )
+                    _LOGGER.info("Resumed iHeartRadio station %s on %s after announcement", station_id, entity_id)
+                except Exception as err:
+                    _LOGGER.warning("Could not resume station %s after announcement: %s", station_id, err)
+
+        # 5. Restore volume back to original level smoothly
+        if is_playing and original_volume > duck_volume:
+            await _async_fade_player(
+                hass=hass,
+                entity_id=entity_id,
+                target_volume=original_volume,
+                duration=fade_duration,
+                pause_on_finish=False,
+                curve="linear",
+            )
+
+    except asyncio.CancelledError:
+        _LOGGER.debug("Announce task cancelled for %s", entity_id)
+        raise
+    finally:
+        active_tasks = hass.data.get(f"{DOMAIN}_tasks", {})
+        active_tasks.pop(entity_id, None)
+
+
 def _async_register_services(hass: HomeAssistant) -> None:
     """Register iHeartRadio integration services."""
     if hass.services.has_service(DOMAIN, SERVICE_PLAY_STATION):
@@ -401,6 +566,14 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 },
                 blocking=True,
             )
+            # Record last played station on targets for auto-resume during announcements
+            last_played = hass.data.setdefault(f"{DOMAIN}_last_played", {})
+            for eid in valid_targets:
+                last_played[eid] = {
+                    "station_id": station_id,
+                    "stream_type": stream_type,
+                }
+
             _LOGGER.info(
                 "Played iHeartRadio station %s on %s",
                 station_id,
@@ -467,6 +640,41 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 active_tasks.pop(eid, None)
                 _LOGGER.info("Cancelled active fade/sleep timer for %s", eid)
 
+    async def _handle_announce(call: ServiceCall) -> None:
+        """Handle the announce service call (smart audio ducking)."""
+        valid_targets = _validate_targets(hass, call.data[ATTR_ENTITY_ID])
+        if not valid_targets:
+            raise HomeAssistantError("No valid target media_player entities provided")
+
+        message = call.data.get(ATTR_MESSAGE)
+        media_content_id = call.data.get(ATTR_MEDIA_CONTENT_ID)
+        duck_volume = call.data[ATTR_DUCK_VOLUME]
+        fade_duration = call.data[ATTR_FADE_DURATION]
+        wait_time = call.data.get(ATTR_WAIT_TIME)
+        tts_engine = call.data.get(ATTR_TTS_ENGINE)
+        announce_player = call.data.get(ATTR_ANNOUNCE_PLAYER)
+
+        active_tasks = hass.data.setdefault(f"{DOMAIN}_tasks", {})
+        for eid in valid_targets:
+            existing = active_tasks.get(eid)
+            if existing and not existing.done():
+                existing.cancel()
+
+            task = hass.async_create_task(
+                _async_announce_player(
+                    hass,
+                    eid,
+                    message,
+                    media_content_id,
+                    duck_volume,
+                    fade_duration,
+                    wait_time,
+                    tts_engine,
+                    announce_player,
+                )
+            )
+            active_tasks[eid] = task
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_PLAY_STATION,
@@ -490,4 +698,10 @@ def _async_register_services(hass: HomeAssistant) -> None:
         SERVICE_CANCEL_FADE,
         _handle_cancel_fade,
         schema=SCHEMA_CANCEL_FADE,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ANNOUNCE,
+        _handle_announce,
+        schema=SCHEMA_ANNOUNCE,
     )

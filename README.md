@@ -124,6 +124,22 @@ data:
   fade_duration: 60
 ```
 
+### 4. Smart Audio Ducking for Announcements (`iheartradio.announce`)
+When a 3D print finishes, a garage door opens, or someone presses your doorbell, having Home Assistant blast TTS speech *over* your radio stream (or having your smart speaker cut the radio off entirely) is super frustrating. 
+
+I built the **`iheartradio.announce`** action to solve this once and for all: it smoothly ducks your playing radio volume down to a quiet background level, plays your voice message or custom chime, and then automatically resumes your radio station and fades the volume right back up!
+
+```yaml
+alias: "3D Print Finished Alert"
+action: iheartradio.announce
+target:
+  entity_id: media_player.workshop_speaker
+data:
+  message: "Build plate clear! Print finished successfully."
+  duck_volume: 0.15
+  fade_duration: 2
+```
+
 ---
 
 ## 🤝 Community & Feedback
