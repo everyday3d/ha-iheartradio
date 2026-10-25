@@ -10,6 +10,19 @@ With this integration, you get thousands of live local AM/FM stations and digita
 
 ---
 
+## 🆕 What's New in v1.0.2
+
+- **📡 Cross-Platform Multi-Speaker Synchronized Broadcasts (`iheartradio.play_group`)**:
+  - Blast your favorite live radio station across all your smart speakers at the same time—even across completely different brands (Sonos, Google Nest / Cast, Apple AirPlay, ESP32, Snapcast).
+  - Resolves the audio stream once and connects all speakers concurrently to eliminate sequential lag.
+  - Dial in a master volume or balance individual per-speaker volumes (`volumes`) so loud shop tools don't blast out the living room.
+- **🛑 Single-Touch Whole-House Shutoff (`iheartradio.stop_group`)**:
+  - Instantly pause or stop all active group broadcast speakers in one automation action.
+- **🎨 Multi-Room Material Design Icons (`icons.json`)**:
+  - Native MDI icons for multi-speaker broadcast actions in the Home Assistant action picker (`mdi:speaker-multiple` and `mdi:speaker-off`).
+
+---
+
 ## 🌟 What It Does
 
 - **📻 Native Media Browser Support**: Shows up directly inside Home Assistant's Media Browser sidebar. Browse stations by your local city, explore genres, or pick from your saved favorites.

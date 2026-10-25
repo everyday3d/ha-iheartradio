@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-25
+
+### Added
+- **📡 Cross-Platform Multi-Speaker Synchronized Broadcasts (`iheartradio.play_group`) (#9)**:
+  - If your setup is anything like mine, you've probably got an assortment of speakers from different brands—a Sonos in the living room, a Google Nest in the kitchen, and bench speakers in the workshop. Normal speaker grouping refuses to bridge across brands.
+  - Added the **`iheartradio.play_group`** action to break right through that wall: it resolves the live station stream URL once and dispatches stream playback commands concurrently across all target speakers to eliminate sequential network lag.
+  - Added **independent per-speaker volume balancing**: you can set a baseline master volume or dial in custom per-speaker volume levels (`volumes`) so loud machines in the garage don't force you to blast the kitchen.
+- **🛑 Single-Touch Whole-House Shutoff (`iheartradio.stop_group`) (#9)**:
+  - Added the **`iheartradio.stop_group`** action to stop or pause playback across all active group speakers in one click without having to specify individual entity IDs in your automations.
+- **🎨 Multi-Room Material Design Icons (`icons.json`) (#9)**:
+  - Added official action icons for multi-speaker broadcast: `mdi:speaker-multiple` for `play_group` and `mdi:speaker-off` for `stop_group`.
+
+### Improvements & Hardening
+- **⚙️ Frenck Architectural Standards Compliance (#9)**:
+  - Guarded all service registrations for clean hot-reloads in daemon memory.
+  - Added strict target validation ensuring all targets are verified `media_player.*` entities active in Home Assistant.
+  - Added clean lifecycle unload in `async_unload_entry` (Rule 14.8) removing all registered services, canceling background tasks, and purging group tracking state when the integration is unloaded.
+
 ## [1.0.1] - 2026-10-25
 
 ### Added
