@@ -28,7 +28,7 @@ from .websocket import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.MEDIA_SOURCE]
+PLATFORMS: list[Platform] = []
 
 SERVICE_PLAY_STATION = "play_station"
 ATTR_ENTITY_ID = "entity_id"
@@ -96,7 +96,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload an iHeartRadio config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = (
+        await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        if PLATFORMS
+        else True
+    )
 
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)

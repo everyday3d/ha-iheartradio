@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clean lifecycle unloading (`async_unload_entry`).
 
 ### Fixed
+- **Config Flow Load Failure / Invalid Handler (#4)**:
+  - Removed invalid `Platform.MEDIA_SOURCE` reference in `custom_components/iheartradio/__init__.py`. `media_source` is an integration-level component auto-loaded via `async_get_media_source` rather than an entity platform enum, eliminating the `AttributeError: type object 'EntityPlatforms' has no attribute 'MEDIA_SOURCE'` that broke config flow registration.
 - **CI Dependency & Private Repository CI Notice (#3)**:
   - Added missing `http` component dependency to `manifest.json` resolving Hassfest validation error.
   - Configured `validate-hacs` workflow to skip gracefully with a notice while the repository is private (HACS action only validates public repositories).
