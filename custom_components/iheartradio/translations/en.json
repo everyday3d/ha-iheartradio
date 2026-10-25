@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up iHeartRadio",
+        "description": "Select your local city/market and preferred streaming format. You can change these anytime in integration options.",
+        "data": {
+          "default_market": "Default City / Market",
+          "stream_type": "Preferred Audio Stream Format"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "iHeartRadio is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "iHeartRadio Configuration",
+        "description": "Customize your default market, audio streaming format, or saved favorite station IDs.",
+        "data": {
+          "default_market": "Default City / Market",
+          "stream_type": "Preferred Audio Stream Format",
+          "favorites": "Favorite Station IDs (comma-separated, e.g., 1469, 1477, 4422)"
+        }
+      }
+    }
+  },
+  "issues": {
+    "api_connection_error": {
+      "title": "iHeartRadio API Communication Error",
+      "description": "Unable to communicate with the iHeartRadio catalog servers ({error}). Automatic retries will resume when connectivity is restored."
+    }
+  },
+  "services": {
+    "play_station": {
+      "name": "Play Station",
+      "description": "Play an iHeartRadio live radio station by name, call letters, or station ID on any Home Assistant media player.",
+      "fields": {
+        "entity_id": {
+          "name": "Target Media Player",
+          "description": "One or more media player entities to stream the radio station to."
+        },
+        "station": {
+          "name": "Station Query",
+          "description": "Station query (e.g., 'Z100', '106.7 Lite FM', 'WHTZ-FM', or station ID '1469')."
+        }
+      }
+    }
+  }
+}

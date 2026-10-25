@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+.vscode/
+.idea/
+.pytest_cache/
+.coverage
+htmlcov/
+.codegraph/
+*.swp
+*.swo

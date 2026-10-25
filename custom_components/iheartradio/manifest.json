@@ -1,0 +1,13 @@
+{
+  "domain": "iheartradio",
+  "name": "iHeartRadio",
+  "codeowners": ["@everyday3d"],
+  "config_flow": true,
+  "documentation": "https://github.com/everyday3d/ha-iheartradio",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/everyday3d/ha-iheartradio/issues",
+  "quality_scale": "platinum",
+  "requirements": [],
+  "version": "1.0.0"
+}
