@@ -20,7 +20,7 @@ DEFAULT_MARKET: Final = "159"
 # API Endpoints
 API_BASE_V1: Final = "https://api.iheart.com/api/v1"
 API_BASE_V2: Final = "https://api.iheart.com/api/v2"
-API_USER_AGENT: Final = "HomeAssistant-iHeartRadio/1.0.0 (https://github.com/everyday3d/ha-iheartradio)"
+API_USER_AGENT: Final = "HomeAssistant-iHeartRadio/1.0.1 (https://github.com/everyday3d/ha-iheartradio)"
 
 # US State Names mapping
 US_STATE_NAMES: Final[dict[str, str]] = {

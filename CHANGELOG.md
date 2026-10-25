@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
+### Added
+- **🌙 Smooth Volume Fades & Sleep Timers (`iheartradio.fade_out`, `iheartradio.sleep_timer`, `iheartradio.cancel_fade`)**:
+  - Out in my workshop and around the house, I got tired of building complicated repeat loops and delays in Home Assistant automations just to gently wind down the music at the end of the day or set a bedtime timer.
+  - Added the **`iheartradio.fade_out`** action so you can smoothly lower or raise speaker volume over 1 to 1800 seconds, with your choice of a standard linear fade or a natural perceptual logarithmic fade, plus an option to automatically pause playback once it reaches zero.
+  - Added the **`iheartradio.sleep_timer`** action to set a 1 to 240 minute countdown that automatically fades the volume down during the final seconds before pausing or stopping the speaker.
+  - Added the **`iheartradio.cancel_fade`** action so you can instantly cancel any active fade or sleep timer on a speaker without messing with what is currently playing.
+- **🎨 Material Design Action Icons (`icons.json`)**:
+  - Added an official `icons.json` mapping so all iHeartRadio actions show crisp, recognizable icons (`mdi:radio`, `mdi:volume-minus`, `mdi:sleep`, and `mdi:close-circle-outline`) in Home Assistant's Automation Editor, Action Picker, and Developer Tools.
+
+### Improvements & Hardening
+- **⚙️ Core-Standard Service Architecture**:
+  - Updated `services.yaml` to move target speaker definitions up to top-level `target:` blocks, matching Home Assistant Core media player services so you can easily target entities, devices, or areas with the native UI picker.
+  - Added strict speaker entity whitelisting so actions only send commands to validated `media_player` entities that are active in Home Assistant.
+  - Added clean background task management that safely tracks running fade and sleep tasks, stops conflicting tasks on the same speaker, and cancels all active timers cleanly if the integration is reloaded or removed so nothing ever hangs.
+- **⚖️ Legal & Trademark Disclaimers**:
+  - Added clear trademark, product name, and logo ownership disclaimers to the repository README and Wiki.
+- **🧹 Cleaned Deployment Files**:
+  - Cleaned internal deployment scripts out of the repository tree and permanently ignored the scripts folder in `.gitignore`.
+
 ### Added
 - **Nationwide US Markets Directory & Dynamic Market Picker (#7)**:
   - Expanded catalog to all **274 official US radio markets** across all 50 states + DC, PR, and National/Digital.
